@@ -1,0 +1,15 @@
+1. User/Key based authentication
+	-	VPC, EC2
+	- Groups  
+		- Devops Engineer
+			- Read only on all files
+		- Devops Admin
+			- Full access on the node including its contents and applications
+		- App user
+			- Read only on a need basis
+2. Elastic Load balancer and Application Load balancer
+3. Security aspects
+	-	Closure of unwanted ports
+	-	Policy of Least privilege
+4. High Availability and Fault tolerance
+		
