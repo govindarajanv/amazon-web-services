@@ -6,4 +6,7 @@ Personally I question the need for HA. If you chef server goes off-line the serv
 
 "Cookbooks", "environments", "roles" and "databags" are normally kept under revision control. What's missing for DR is the transactional data namely "nodes" and "clients". For these I'd recommend investigating the new download and upload knife commands that came with Chef 11.
 
+Option #1:
+==========
 
+Having one standalone chef server, high availability is achieved by making use of Auto scaling group and snapshots. Here minimum one node should always be running, if that node goes down, Auto scaling group will spin up the instance when the health check fails. It uses the latest AMI and snapshot to spin up the instance.
