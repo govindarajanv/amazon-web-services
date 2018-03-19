@@ -1,0 +1,203 @@
+EIP:18.233.51.184
+
+35.169.222.103
+
+
+
+Two instances with Amazon Linux AMI
+
+10.58.2.134 and i-00691d649696ef1be   18.233.51.184
+10.58.3.142 and i-08522a72ffc0d171c   35.169.222.103
+
+Attaching EIP to 10.58.2.134
+
+configure aws cli with access key and secret access key
+
+[root@ip-10-58-3-142 ec2-user]# aws configure
+AWS Access Key ID [None]: <access key>
+AWS Secret Access Key [None]: <secret access key>
+Default region name [None]: us-east-1
+Default output format [None]:
+
+yum install haproxy -y
+
+/etc/haproxy/haproxy.cfg
+
+global
+    log         127.0.0.1 local0 
+    chroot      /var/lib/haproxy
+    pidfile     /var/run/haproxy.pid
+    maxconn     4000
+    user        haproxy
+    group       haproxy
+    daemon
+    stats socket /var/lib/haproxy/stats
+
+defaults
+    mode                    http
+    log                     global
+    option                  httplog
+    option                  dontlognull
+    option http-server-close
+    option forwardfor       except 127.0.0.0/8
+    option                  redispatch
+    retries                 3
+    timeout http-request    10s
+    timeout queue           1m
+    timeout connect         10s
+    timeout client          1m
+    timeout server          1m
+    timeout http-keep-alive 10s
+    timeout check           10s
+    maxconn                 3000
+
+    errorfile 503 /etc/haproxy/errorfiles/503.http
+
+frontend http-in
+    mode http
+    bind *:80 
+
+    default_backend varnish
+
+backend varnish
+    mode http
+    balance roundrobin
+
+    option httpchk HEAD / HTTP/1.1
+    server varnish 127.0.0.1:6081 check
+
+mkdir -p /etc/haproxy/errorfiles
+
+/etc/haproxy/errorfiles/503.http
+
+HTTP/1.0 503 Service Unavailable
+Cache-Control: no-cache
+Connection: close
+Content-Type: text/html
+
+<html>
+  <head>
+    <title>503 -  Service Unavailable</title>
+  </head>
+  <body>
+    <div>
+          <h2>This is 10.58.2.134</h2>
+    </div>
+  </body>
+</html>
+
+chkconfig haproxy on or systemctl enable haproxy
+service haproxy start or systemctl start haproxy
+
+yum install keepalived -y
+
+/etc/keepalived/keepalived.conf
+
+
+vrrp_script check_haproxy
+{
+    script "pidof haproxy"
+    interval 5
+    fall 2
+    rise 2
+}
+
+vrrp_instance VI_1
+{
+    debug 2
+    interface eth0
+    state MASTER
+    virtual_router_id 1
+    priority 110
+    unicast_src_ip 10.58.2.134
+
+    unicast_peer
+    {
+        10.58.3.142
+    }
+
+    track_script
+    {
+        check_haproxy
+    }
+
+    notify_master /etc/keepalived/failover.sh
+}
+
+/etc/keepalived/failover.sh
+
+
+
+#!/bin/bash
+
+EIP=18.233.51.184
+INSTANCE_ID=i-08522a72ffc0d171c
+
+/usr/bin/aws ec2 disassociate-address --public-ip $EIP
+/usr/bin/aws ec2 associate-address --public-ip $EIP --instance-id $INSTANCE_ID
+
+chmod 700 /etc/keepalived/failover.sh
+
+chkconfig keepalived on
+service keepalived start
+
+tail -f /var/log/messages
+
+Mar 19 12:36:04 ip-10-58-2-134 Keepalived_vrrp[23166]: VRRP_Instance(VI_1) Transition to MASTER STATE
+Mar 19 12:36:05 ip-10-58-2-134 Keepalived_vrrp[23166]: VRRP_Instance(VI_1) Entering MASTER STATE
+
+Do the same steps on server 2
+
+configure aws cli with access key and secret access key
+
+/etc/keepalived/keepalived.conf
+
+
+
+vrrp_script check_haproxy
+{
+    script "pidof haproxy"
+    interval 5
+    fall 2
+    rise 2
+}
+
+vrrp_instance VI_1
+{
+    debug 2
+    interface eth0
+    state BACKUP
+    virtual_router_id 1
+    priority 100
+    unicast_src_ip 10.0.1.42
+
+    unicast_peer
+    {
+        10.0.1.131
+    }
+
+    track_script
+    {
+        check_haproxy
+    }
+
+    notify_master /etc/keepalived/failover.sh
+}
+
+/etc/keepalived/failover.sh
+
+#!/bin/bash
+
+EIP=18.233.51.184
+INSTANCE_ID=i-00691d649696ef1be
+
+/usr/bin/aws ec2 disassociate-address --public-ip $EIP
+/usr/bin/aws ec2 associate-address --public-ip $EIP --instance-id $INSTANCE_ID
+
+chmod 700 /etc/keepalived/failover.sh
+
+chkconfig keepalived on
+service keepalived start
+
+tail -f /var/log/messages
+Mar 19 12:36:14 ip-10-58-3-142 Keepalived_vrrp[2858]: VRRP_Instance(VI_1) Entering BACKUP STATE
