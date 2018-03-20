@@ -201,3 +201,5 @@ service keepalived start
 
 tail -f /var/log/messages
 Mar 19 12:36:14 ip-10-58-3-142 Keepalived_vrrp[2858]: VRRP_Instance(VI_1) Entering BACKUP STATE
+
+
